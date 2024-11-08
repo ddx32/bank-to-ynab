@@ -3,7 +3,7 @@ import type { CSVBody } from "../types";
 
 const csvOptions = { delimiter: ";" };
 
-function cleanupCsvString(csvString: string): string {
+export function preprocessKbData(csvString: string): string {
   const rows = csvString.split("\n");
   return rows.reduce((acc, current) => {
     if (acc.length > 0 || current.startsWith('"Datum splatnosti"')) {
@@ -13,7 +13,7 @@ function cleanupCsvString(csvString: string): string {
   }, "");
 }
 
-function parseCsvString(csvString: string): Promise<CSVBody> {
+export function getKbData(csvString: string): Promise<CSVBody> {
   return new Promise((resolve, reject) => {
     parse(csvString, csvOptions, (err, records) => {
       if (err) {
@@ -33,9 +33,4 @@ function parseCsvString(csvString: string): Promise<CSVBody> {
       resolve(dataArray);
     });
   });
-}
-
-export function getKbData(csvFileContent: string) {
-  const csvString = cleanupCsvString(csvFileContent);
-  return parseCsvString(csvString);
 }
