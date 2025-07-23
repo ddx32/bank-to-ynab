@@ -3,11 +3,13 @@
   import type { Bank, CSVBody } from "./types";
   import { getDownloadLink, getYnabCsv } from "./lib/csvFileTools";
   import { preprocessKbData } from "./lib/getKbData";
+  import { preprocessKbPlusData } from "./lib/getKbPlusData";
 
   import Header from "./components/Header.svelte";
 
   import airBankLogo from "../assets/airbank-logo.png";
   import kbLogo from "../assets/kb-logo.png";
+  import kbPlusLogo from "../assets/kbplus.png";
 
   let isDragging = false;
   let fileDownloadUrl: string;
@@ -23,6 +25,15 @@
       secondaryColor: "#99CC33",
       bodyColor: "#ffffff",
       icon: airBankLogo,
+    },
+    {
+      id: "kb-plus",
+      name: "KB Plus",
+      color: "#FFFFFF",
+      secondaryColor: "#000000",
+      bodyColor: "#000000",
+      icon: kbPlusLogo,
+      preprocessFunction: preprocessKbPlusData,
     },
     {
       id: "kb",
@@ -158,6 +169,10 @@
     background-position: center;
     color: transparent;
     border: none;
+    text-indent: -9999px;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 100px;
   }
 
   .drop-zone {

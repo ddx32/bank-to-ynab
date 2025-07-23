@@ -2,6 +2,7 @@ import { stringify } from "csv-stringify/browser/esm";
 import type { Bank, CSVBody, CSVRow } from "../types";
 import { getKbData } from "./getKbData";
 import { getAirBankData } from "./getAirBankData";
+import { getKbPlusData } from "./getKbPlusData";
 
 function getCsvString(csvData: CSVBody): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,6 +30,8 @@ function getCsvData(fileContent: string, bankId: string) {
         return getKbData(fileContent);
       case "air_bank":
         return getAirBankData(fileContent);
+      case "kb-plus":
+        return getKbPlusData(fileContent);
       default:
         throw new Error("Invalid bank ID");
     }
