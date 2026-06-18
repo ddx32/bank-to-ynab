@@ -13,6 +13,7 @@
 
   let isDragging = false;
   let fileDownloadUrl: string;
+  let downloadFileName: string;
   let fileItem: DataTransferItem;
   let processedContents: CSVBody;
   let processingError: string | null = null;
@@ -67,15 +68,37 @@
     try {
       processedContents = await getYnabCsv(item, currentBank);
       fileDownloadUrl = await getDownloadLink(processedContents);
+      downloadFileName = getFileName();
       processingError = null;
     } catch (error) {
       processingError = "There was an error processing the file";
     }
   }
 
-  function getFileUrl() {
-    const date = new Date().toISOString();
-    return `ynab-export-${currentBank.id}-${date}.csv`;
+  // A small list of neutral words used to give each export a friendly, unique tag.
+  const NAME_WORDS = [
+    "brave", "quiet", "swift", "sunny", "bright", "calm", "lucky", "merry",
+    "amber", "azure", "cosmic", "gentle", "noble", "rapid", "vivid", "zesty",
+    "otter", "river", "willow", "meadow", "harbor", "comet", "falcon", "maple",
+    "pebble", "cedar", "lantern", "compass", "marble", "orchard",
+  ];
+
+  function randomWords(count = 2): string {
+    const pool = [...NAME_WORDS];
+    const out: string[] = [];
+    for (let i = 0; i < count && pool.length; i++) {
+      out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    }
+    return out.join("-");
+  }
+
+  function getFileName(): string {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const time = `${pad(d.getHours())}${pad(d.getMinutes())}`;
+    const bank = currentBank.id.replace(/_/g, "-");
+    return `ynab-${bank}-${date}-${time}-${randomWords()}.csv`;
   }
 </script>
 
@@ -127,7 +150,7 @@
         {#if fileDownloadUrl}
           <a
             href={fileDownloadUrl}
-            download={getFileUrl()}
+            download={downloadFileName}
             class="download-button"
             style="background-color: {currentBank.bodyColor}; color: {currentBank.color}; border-color: {currentBank.color}"
             >Download file</a
