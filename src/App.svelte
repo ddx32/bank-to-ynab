@@ -1,6 +1,6 @@
 <script lang="ts">
   import "./app.css";
-  import type { Bank, CSVBody } from "./types";
+  import type { Bank } from "./types";
   import { getDownloadLink, getYnabCsv } from "./lib/csvFileTools";
   import { preprocessKbData } from "./lib/getKbData";
   import { preprocessKbPlusData } from "./lib/getKbPlusData";
@@ -11,11 +11,22 @@
   import kbLogo from "../assets/kb-logo.png";
   import kbPlusLogo from "../assets/kbplus.png";
 
+  type HistoryEntry = {
+    id: number;
+    sourceName: string;
+    downloadUrl: string;
+    downloadName: string;
+    bankName: string;
+    bankColor: string;
+    bankBodyColor: string;
+    rowCount: number;
+    processedAt: Date;
+    downloaded: boolean;
+  };
+
   let isDragging = false;
-  let fileDownloadUrl: string;
-  let downloadFileName: string;
-  let fileItem: DataTransferItem;
-  let processedContents: CSVBody;
+  let history: HistoryEntry[] = [];
+  let nextId = 0;
   let processingError: string | null = null;
 
   const banks: Bank[] = [
@@ -63,16 +74,36 @@
     }
 
     const item = event.dataTransfer.items[0];
-    fileItem = item;
+    const sourceName = item.kind === "file" ? item.getAsFile()?.name : undefined;
 
     try {
-      processedContents = await getYnabCsv(item, currentBank);
-      fileDownloadUrl = await getDownloadLink(processedContents);
-      downloadFileName = getFileName();
+      const csv = await getYnabCsv(item, currentBank);
+      const url = await getDownloadLink(csv);
+      history = [
+        {
+          id: nextId++,
+          sourceName: sourceName ?? "unknown",
+          downloadUrl: url,
+          downloadName: getFileName(),
+          bankName: currentBank.name,
+          bankColor: currentBank.color,
+          bankBodyColor: currentBank.bodyColor,
+          rowCount: Math.max(0, csv.length - 1),
+          processedAt: new Date(),
+          downloaded: false,
+        },
+        ...history,
+      ];
       processingError = null;
     } catch (error) {
       processingError = "There was an error processing the file";
     }
+  }
+
+  function markDownloaded(id: number) {
+    history = history.map((h) =>
+      h.id === id ? { ...h, downloaded: true } : h,
+    );
   }
 
   // A small list of neutral words used to give each export a friendly, unique tag.
@@ -133,31 +164,50 @@
       </div>
     </section>
 
-    <div class="file-meta">
-      {#if fileItem}
-        <div>
-          Processed File: {fileItem.kind === "file"
-            ? fileItem.getAsFile()?.name
-            : "unknown"}
-        </div>
-      {/if}
+    {#if processingError}
+      <p class="error-message">{processingError}</p>
+    {/if}
 
-      <div class="file-download">
-        {#if processingError}
-          <p class="error-message">{processingError}</p>
-        {/if}
-
-        {#if fileDownloadUrl}
-          <a
-            href={fileDownloadUrl}
-            download={downloadFileName}
-            class="download-button"
-            style="background-color: {currentBank.bodyColor}; color: {currentBank.color}; border-color: {currentBank.color}"
-            >Download file</a
-          >
-        {/if}
-      </div>
-    </div>
+    {#if history.length}
+      <section class="history">
+        <h2 class="history-title">History</h2>
+        <ul class="history-list">
+          {#each history as entry (entry.id)}
+            <li
+              class="history-item {entry.downloaded ? 'is-done' : ''}"
+              style="--accent: {entry.bankColor};"
+            >
+              <div class="history-info">
+                <span class="history-name">{entry.sourceName}</span>
+                <span class="history-meta">
+                  <span class="history-bank">{entry.bankName}</span>
+                  <span class="history-dot">·</span>
+                  {entry.rowCount} rows
+                  <span class="history-dot">·</span>
+                  {entry.processedAt.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <div class="history-action">
+                {#if entry.downloaded}
+                  <span class="history-done">✓ Downloaded</span>
+                {/if}
+                <a
+                  href={entry.downloadUrl}
+                  download={entry.downloadName}
+                  class="download-button {entry.downloaded ? 'is-secondary' : ''}"
+                  style="background-color: {entry.bankBodyColor}; color: {entry.bankColor}; border-color: {entry.bankColor}"
+                  on:click={() => markDownloaded(entry.id)}
+                  >{entry.downloaded ? "Download again" : "Download"}</a
+                >
+              </div>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
   </main>
 </div>
 
@@ -219,27 +269,122 @@
     border-radius: 1rem;
   }
 
-  .file-meta {
+  .error-message {
     margin-top: 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    background: rgba(169, 19, 29, 0.5);
+    padding: 0.75rem 1rem;
+    border-radius: 0.4rem;
   }
 
-  .error-message {
-    background: rgba(169, 19, 29, 0.5);
-    padding: 0.5rem;
-    border-radius: 0.1rem;
+  .history {
+    margin-top: 2rem;
+  }
+
+  .history-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.65;
+  }
+
+  .history-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    background: rgba(0, 0, 0, 0.18);
+    border-left: 4px solid var(--accent);
+    border-radius: 0.55rem;
+    box-shadow: rgba(0, 0, 0, 0.2) 0 0.15rem 0.6rem;
+    backdrop-filter: blur(2px);
+    transition:
+      opacity 0.2s,
+      background 0.2s;
+  }
+
+  /* Freshly added entry sits at the top and briefly announces itself. */
+  .history-item:first-child {
+    animation: history-in 0.45s ease;
+  }
+
+  @keyframes history-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.4rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .history-item.is-done {
+    opacity: 0.62;
+  }
+
+  .history-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .history-name {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .history-meta {
+    font-size: 0.8rem;
+    opacity: 0.7;
+  }
+
+  .history-bank {
+    font-weight: 600;
+  }
+
+  .history-dot {
+    opacity: 0.5;
+    margin: 0 0.15rem;
+  }
+
+  .history-action {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .history-done {
+    font-size: 0.8rem;
+    font-weight: 700;
+    opacity: 0.8;
+    white-space: nowrap;
   }
 
   .download-button {
     display: block;
-    padding: 1rem 2rem;
-    max-width: 10rem;
+    padding: 0.7rem 1.4rem;
     text-align: center;
     text-transform: uppercase;
     font-weight: bold;
+    font-size: 0.85rem;
     text-decoration: none;
+    white-space: nowrap;
     border-radius: 0.5rem;
     box-shadow: rgba(0, 0, 0, 0.275) 0 0 1rem;
     border: 2px solid #000;
@@ -251,5 +396,12 @@
   .download-button:hover {
     filter: brightness(1.1);
     transform: scale(1.05);
+  }
+
+  .download-button.is-secondary {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.75rem;
+    box-shadow: none;
+    opacity: 0.85;
   }
 </style>
